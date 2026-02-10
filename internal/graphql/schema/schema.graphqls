@@ -1,0 +1,238 @@
+scalar DateTime
+scalar Date
+
+enum UserRole {
+  USER
+  PRODUCER
+  ADMIN
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  ENDED
+}
+
+enum AudienceType {
+  GENERAL
+  MALE
+  FEMALE
+  CHILD
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  cpf: String!
+  birthDate: Date!
+  photoUrl: String
+  role: UserRole!
+  createdAt: DateTime!
+}
+
+type Producer {
+  id: ID!
+  user: User!
+  companyName: String
+  approved: Boolean!
+}
+
+type Event {
+  id: ID!
+  title: String!
+  description: String!
+  category: String!
+  coverImage: String!
+  location: String!
+  address: String
+  status: EventStatus!
+  dates: [EventDate!]!
+  producer: Producer!
+  featured: Boolean
+}
+
+type EventDate {
+  id: ID!
+  eventId: ID!
+  date: Date!
+  startTime: String
+  endTime: String
+  lots: [Lot!]!
+}
+
+type Lot {
+  id: ID!
+  name: String!
+  startsAt: DateTime!
+  endsAt: DateTime!
+  totalQuantity: Int!
+  availableQuantity: Int!
+  active: Boolean!
+  ticketTypes: [TicketType!]!
+}
+
+type TicketType {
+  id: ID!
+  name: String!
+  description: String
+  price: Float!
+  audience: AudienceType!
+  maxQuantity: Int!
+  soldQuantity: Int!
+}
+
+type Ticket {
+  id: ID!
+  code: String!
+  qrCode: String!
+  event: Event!
+  eventDate: EventDate!
+  ticketType: TicketType!
+  owner: User!
+  used: Boolean!
+  usedAt: DateTime
+  createdAt: DateTime!
+}
+
+"""Perfil público do produtor: dados do produtor + eventos publicados (excl. rascunho)."""
+type ProducerPublicProfile {
+  producer: Producer!
+  events: [Event!]!
+}
+
+"""Resultado da validação de ingresso por QR Code."""
+type ValidateTicketResult {
+  success: Boolean!
+  ticket: Ticket
+  errorCode: String
+  message: String
+}
+
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+input RegisterInput {
+  name: String!
+  email: String!
+  password: String!
+  cpf: String!
+  birthDate: Date!
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+input CreateEventInput {
+  title: String!
+  description: String!
+  category: String!
+  coverImage: String!
+  location: String!
+  address: String
+}
+
+input UpdateEventInput {
+  title: String
+  description: String
+  category: String
+  coverImage: String
+  location: String
+  address: String
+}
+
+input EventDateInput {
+  date: Date!
+  startTime: String
+  endTime: String
+}
+
+input LotInput {
+  name: String!
+  startsAt: DateTime!
+  endsAt: DateTime!
+  totalQuantity: Int!
+}
+
+input TicketTypeInput {
+  name: String!
+  description: String
+  price: Float!
+  audience: AudienceType!
+  maxQuantity: Int!
+}
+
+input CheckoutItemInput {
+  eventDateId: ID!
+  ticketTypeId: ID!
+  quantity: Int!
+}
+
+input CheckoutInput {
+  items: [CheckoutItemInput!]!
+}
+
+input CheckoutPayInput {
+  checkoutId: ID!
+}
+
+type CheckoutPreviewResult {
+  checkoutId: ID!
+  total: Float!
+  items: [CheckoutPreviewItem!]!
+}
+
+type CheckoutPreviewItem {
+  eventTitle: String!
+  eventDate: Date!
+  ticketTypeName: String!
+  quantity: Int!
+  unitPrice: Float!
+  subtotal: Float!
+}
+
+type CheckoutPayResult {
+  success: Boolean!
+  ticketIds: [ID!]
+  qrCodePayload: String
+  qrCodeNumber: String
+  message: String
+}
+
+input EventFilter {
+  category: String
+  date: Date
+  city: String
+}
+
+type Query {
+  events(filter: EventFilter): [Event!]!
+  event(id: ID!): Event
+  producerEvents: [Event!]!
+  producerPublicProfile(producerId: ID!): ProducerPublicProfile
+  myTickets: [Ticket!]!
+  myTicket(id: ID!): Ticket
+  me: User
+  producerMe: Producer
+}
+
+type Mutation {
+  register(input: RegisterInput!): AuthPayload!
+  login(input: LoginInput!): AuthPayload!
+  createEvent(input: CreateEventInput!): Event!
+  updateEvent(id: ID!, input: UpdateEventInput!): Event!
+  publishEvent(id: ID!): Event!
+  updateEventStatus(id: ID!, status: EventStatus!): Event!
+  createEventDate(eventId: ID!, input: EventDateInput!): EventDate!
+  createLot(dateId: ID!, input: LotInput!): Lot!
+  createTicketType(lotId: ID!, input: TicketTypeInput!): TicketType!
+  checkoutPreview(input: CheckoutInput!): CheckoutPreviewResult!
+  checkoutPay(input: CheckoutPayInput!): CheckoutPayResult!
+  updateProfilePhoto(photoBase64: String!): User!
+  validateTicket(eventId: ID!, qrCode: String!): ValidateTicketResult!
+}
