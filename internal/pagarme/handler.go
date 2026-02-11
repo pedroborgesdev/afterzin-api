@@ -85,6 +85,7 @@ func (h *Handler) CreateRecipient(w http.ResponseWriter, r *http.Request) {
 		// PF
 		Name                   string `json:"name"`
 		Email                  string `json:"email"`
+		Phone                  string `json:"phone"`
 		Birthdate              string `json:"birthdate"`
 		MonthlyIncome          int    `json:"monthly_income"`
 		ProfessionalOccupation string `json:"professional_occupation"`
@@ -92,6 +93,7 @@ func (h *Handler) CreateRecipient(w http.ResponseWriter, r *http.Request) {
 		CompanyName   string `json:"company_name"`
 		TradingName   string `json:"trading_name"`
 		AnnualRevenue int    `json:"annual_revenue"`
+		// PJ também pode ter telefone
 		// Bank
 		BankCode          string `json:"bankCode"`
 		BranchNumber      string `json:"branchNumber"`
@@ -132,6 +134,7 @@ func (h *Handler) CreateRecipient(w http.ResponseWriter, r *http.Request) {
 	result, err := h.client.CreateRecipient(CreateRecipientParams{
 		Name:                   req.Name,
 		Email:                  req.Email,
+		Phone:                  req.Phone,
 		Document:               req.Document,
 		DocumentType:           req.DocumentType,
 		Type:                   req.Type,
