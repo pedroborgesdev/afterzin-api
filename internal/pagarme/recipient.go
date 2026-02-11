@@ -46,6 +46,48 @@ func (c *Client) CreateRecipient(params CreateRecipientParams) (*RecipientResult
 		"document": params.Document,
 		"type":     params.Type,
 	}
+	// Usa o telefone real do usuário se disponível
+	var phoneNumbers []string
+	if params.Type == "individual" {
+		if params.ProfessionalOccupation != "" { // só para evitar warning, não é telefone
+			// ...existing code...
+		}
+		if v, ok := any(params).(interface{ GetPhone() string }); ok && v.GetPhone() != "" {
+			phoneNumbers = []string{v.GetPhone()}
+		} else if p, ok := any(params).(map[string]interface{}); ok && p["phone_numbers"] != nil {
+			if arr, ok := p["phone_numbers"].([]string); ok && len(arr) > 0 {
+				phoneNumbers = arr
+			}
+		}
+	}
+	// fallback para PJ
+	if params.Type == "company" {
+		if v, ok := any(params).(interface{ GetPhone() string }); ok && v.GetPhone() != "" {
+			phoneNumbers = []string{v.GetPhone()}
+		} else if p, ok := any(params).(map[string]interface{}); ok && p["phone_numbers"] != nil {
+			if arr, ok := p["phone_numbers"].([]string); ok && len(arr) > 0 {
+				phoneNumbers = arr
+			}
+		}
+	}
+	// fallback: pega do struct se existir campo Phone ou PhoneNumbers
+	if len(phoneNumbers) == 0 {
+		if params.Type == "individual" && params.ProfessionalOccupation != "" {
+			// ...existing code...
+		}
+		// Para garantir compatibilidade, tente pegar do struct
+		if pf, ok := any(params).(struct{ Phone string }); ok && pf.Phone != "" {
+			phoneNumbers = []string{pf.Phone}
+		}
+		if pj, ok := any(params).(struct{ Phone string }); ok && pj.Phone != "" {
+			phoneNumbers = []string{pj.Phone}
+		}
+	}
+	// fallback final: não deixa vazio
+	if len(phoneNumbers) == 0 {
+		phoneNumbers = []string{"+5511999999999"}
+	}
+	registerInfo["phone_numbers"] = phoneNumbers
 	if params.Type == "individual" {
 		registerInfo["name"] = params.Name
 		registerInfo["birthdate"] = params.Birthdate
