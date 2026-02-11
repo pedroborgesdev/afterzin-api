@@ -106,20 +106,24 @@ func (c *Client) CreateRecipient(params CreateRecipientParams) (*RecipientResult
 		registerInfo["annual_revenue"] = params.AnnualRevenue
 	}
 
+	bankAccount := map[string]interface{}{
+		"holder_name":         params.Name,
+		"holder_type":         holderType,
+		"holder_document":     params.Document,
+		"bank":                params.BankCode,
+		"branch_number":       params.BranchNumber,
+		"account_number":      params.AccountNumber,
+		"account_check_digit": params.AccountCheckDigit,
+		"type":                params.AccountType,
+	}
+	if params.BranchCheckDigit != "" {
+		bankAccount["branch_check_digit"] = params.BranchCheckDigit
+	}
+
 	body := map[string]interface{}{
 		"code":                 params.Document, // pode ser ajustado para um identificador único
 		"register_information": registerInfo,
-		"default_bank_account": map[string]interface{}{
-			"holder_name":         params.Name,
-			"holder_type":         holderType,
-			"holder_document":     params.Document,
-			"bank":                params.BankCode,
-			"branch_number":       params.BranchNumber,
-			"branch_check_digit":  params.BranchCheckDigit,
-			"account_number":      params.AccountNumber,
-			"account_check_digit": params.AccountCheckDigit,
-			"type":                params.AccountType,
-		},
+		"default_bank_account": bankAccount,
 		"transfer_settings": map[string]interface{}{
 			"transfer_enabled":  true,
 			"transfer_interval": "daily",
