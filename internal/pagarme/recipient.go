@@ -1,6 +1,9 @@
 package pagarme
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
 
 // CreateRecipientParams holds the data needed to create a Pagar.me recipient.
 type CreateRecipientParams struct {
@@ -44,8 +47,19 @@ func (c *Client) CreateRecipient(params CreateRecipientParams) (*RecipientResult
 
 	phoneNumbers := []map[string]string{}
 	if params.Phone != "" {
+		// Extrai DDD e número
+		ddd := ""
+		number := ""
+		cleaned := params.Phone
+		// Remove caracteres não numéricos
+		cleaned = regexp.MustCompile(`\D`).ReplaceAllString(cleaned, "")
+		if len(cleaned) >= 10 {
+			ddd = cleaned[:2]
+			number = cleaned[2:]
+		}
 		phoneNumbers = append(phoneNumbers, map[string]string{
-			"number": params.Phone,
+			"ddd":    ddd,
+			"number": number,
 			"type":   "mobile",
 		})
 	}
