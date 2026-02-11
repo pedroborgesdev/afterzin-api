@@ -4,17 +4,23 @@ import "fmt"
 
 // CreateRecipientParams holds the data needed to create a Pagar.me recipient.
 type CreateRecipientParams struct {
-	Name              string
-	Email             string
-	Document          string // CPF or CNPJ
-	DocumentType      string // "CPF" or "CNPJ"
-	Type              string // "individual" or "company"
-	BankCode          string // e.g. "001", "341"
-	BranchNumber      string
-	BranchCheckDigit  string
-	AccountNumber     string
-	AccountCheckDigit string
-	AccountType       string // "checking" or "savings"
+	Name                   string
+	Email                  string
+	Document               string // CPF or CNPJ
+	DocumentType           string // "CPF" ou "CNPJ"
+	Type                   string // "individual" ou "company"
+	Birthdate              string // PF
+	MonthlyIncome          int    // PF
+	ProfessionalOccupation string // PF
+	CompanyName            string // PJ
+	TradingName            string // PJ
+	AnnualRevenue          int    // PJ
+	BankCode               string // e.g. "001", "341"
+	BranchNumber           string
+	BranchCheckDigit       string
+	AccountNumber          string
+	AccountCheckDigit      string
+	AccountType            string // "checking" ou "savings"
 }
 
 // RecipientResult contains the recipient data returned after creation.
@@ -28,17 +34,32 @@ type RecipientResult struct {
 //
 // A recipient represents a producer who can receive split payments.
 // The default bank account is used for automatic transfers.
+
 func (c *Client) CreateRecipient(params CreateRecipientParams) (*RecipientResult, error) {
 	holderType := "individual"
 	if params.Type == "company" {
 		holderType = "company"
 	}
 
-	body := map[string]interface{}{
-		"name":     params.Name,
+	registerInfo := map[string]interface{}{
 		"email":    params.Email,
 		"document": params.Document,
 		"type":     params.Type,
+	}
+	if params.Type == "individual" {
+		registerInfo["name"] = params.Name
+		registerInfo["birthdate"] = params.Birthdate
+		registerInfo["monthly_income"] = params.MonthlyIncome
+		registerInfo["professional_occupation"] = params.ProfessionalOccupation
+	} else {
+		registerInfo["company_name"] = params.CompanyName
+		registerInfo["trading_name"] = params.TradingName
+		registerInfo["annual_revenue"] = params.AnnualRevenue
+	}
+
+	body := map[string]interface{}{
+		"code":                 params.Document, // pode ser ajustado para um identificador único
+		"register_information": registerInfo,
 		"default_bank_account": map[string]interface{}{
 			"holder_name":         params.Name,
 			"holder_type":         holderType,

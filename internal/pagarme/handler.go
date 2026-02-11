@@ -79,15 +79,26 @@ func (h *Handler) CreateRecipient(w http.ResponseWriter, r *http.Request) {
 
 	// Parse request body
 	var req struct {
-		Document          string `json:"document"`
-		DocumentType      string `json:"documentType"` // CPF or CNPJ
-		Type              string `json:"type"`         // individual or company
+		Document     string `json:"document"`
+		DocumentType string `json:"documentType"`
+		Type         string `json:"type"`
+		// PF
+		Name                   string `json:"name"`
+		Email                  string `json:"email"`
+		Birthdate              string `json:"birthdate"`
+		MonthlyIncome          int    `json:"monthly_income"`
+		ProfessionalOccupation string `json:"professional_occupation"`
+		// PJ
+		CompanyName   string `json:"company_name"`
+		TradingName   string `json:"trading_name"`
+		AnnualRevenue int    `json:"annual_revenue"`
+		// Bank
 		BankCode          string `json:"bankCode"`
 		BranchNumber      string `json:"branchNumber"`
 		BranchCheckDigit  string `json:"branchCheckDigit"`
 		AccountNumber     string `json:"accountNumber"`
 		AccountCheckDigit string `json:"accountCheckDigit"`
-		AccountType       string `json:"accountType"` // checking or savings
+		AccountType       string `json:"accountType"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondError(w, http.StatusBadRequest, "corpo inválido")
@@ -119,17 +130,23 @@ func (h *Handler) CreateRecipient(w http.ResponseWriter, r *http.Request) {
 
 	// Create recipient in Pagar.me
 	result, err := h.client.CreateRecipient(CreateRecipientParams{
-		Name:              user.Name,
-		Email:             user.Email,
-		Document:          req.Document,
-		DocumentType:      req.DocumentType,
-		Type:              req.Type,
-		BankCode:          req.BankCode,
-		BranchNumber:      req.BranchNumber,
-		BranchCheckDigit:  req.BranchCheckDigit,
-		AccountNumber:     req.AccountNumber,
-		AccountCheckDigit: req.AccountCheckDigit,
-		AccountType:       req.AccountType,
+		Name:                   req.Name,
+		Email:                  req.Email,
+		Document:               req.Document,
+		DocumentType:           req.DocumentType,
+		Type:                   req.Type,
+		Birthdate:              req.Birthdate,
+		MonthlyIncome:          req.MonthlyIncome,
+		ProfessionalOccupation: req.ProfessionalOccupation,
+		CompanyName:            req.CompanyName,
+		TradingName:            req.TradingName,
+		AnnualRevenue:          req.AnnualRevenue,
+		BankCode:               req.BankCode,
+		BranchNumber:           req.BranchNumber,
+		BranchCheckDigit:       req.BranchCheckDigit,
+		AccountNumber:          req.AccountNumber,
+		AccountCheckDigit:      req.AccountCheckDigit,
+		AccountType:            req.AccountType,
 	})
 	if err != nil {
 		log.Printf("pagarme: create recipient error: %v", err)
