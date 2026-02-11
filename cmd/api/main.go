@@ -56,11 +56,11 @@ func main() {
 			cfg.BaseURL,
 		)
 		pagarmeHandler := pagarme.NewHandler(pagarmeClient, sqlite, cfg)
-		mux.HandleFunc("/v1/pagarme/recipient/create", pagarmeHandler.CreateRecipient)
-		mux.HandleFunc("/v1/pagarme/recipient/status", pagarmeHandler.GetRecipientStatus)
-		mux.HandleFunc("/v1/pagarme/payment/create", pagarmeHandler.CreatePayment)
-		mux.HandleFunc("/v1/pagarme/payment/status", pagarmeHandler.GetPaymentStatus)
-		mux.HandleFunc("/v1/pagarme/webhook", pagarmeHandler.HandleWebhook)
+		mux.HandleFunc("/v1/recipient/create", pagarmeHandler.CreateRecipient)
+		mux.HandleFunc("/v1/recipient/status", pagarmeHandler.GetRecipientStatus)
+		mux.HandleFunc("/v1/payment/create", pagarmeHandler.CreatePayment)
+		mux.HandleFunc("/v1/payment/status", pagarmeHandler.GetPaymentStatus)
+		mux.HandleFunc("/v1/webhook", pagarmeHandler.HandleWebhook)
 		log.Println("Pagar.me endpoints registered (Recipient + PIX Payment + Webhook)")
 	} else {
 		log.Println("PAGARME_API_KEY not set — Pagar.me endpoints disabled")
