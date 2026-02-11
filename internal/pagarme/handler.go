@@ -83,12 +83,13 @@ func (h *Handler) CreateRecipient(w http.ResponseWriter, r *http.Request) {
 		DocumentType string `json:"documentType"`
 		Type         string `json:"type"`
 		// PF
-		Name                   string `json:"name"`
-		Email                  string `json:"email"`
-		Phone                  string `json:"phone"`
-		Birthdate              string `json:"birthdate"`
-		MonthlyIncome          int    `json:"monthly_income"`
-		ProfessionalOccupation string `json:"professional_occupation"`
+		Name                   string   `json:"name"`
+		Email                  string   `json:"email"`
+		Phone                  string   `json:"phone"`
+		Birthdate              string   `json:"birthdate"`
+		MonthlyIncome          int      `json:"monthly_income"`
+		ProfessionalOccupation string   `json:"professional_occupation"`
+		Address                *Address `json:"address"`
 		// PJ
 		CompanyName   string `json:"company_name"`
 		TradingName   string `json:"trading_name"`
@@ -141,6 +142,7 @@ func (h *Handler) CreateRecipient(w http.ResponseWriter, r *http.Request) {
 		Birthdate:              req.Birthdate,
 		MonthlyIncome:          req.MonthlyIncome,
 		ProfessionalOccupation: req.ProfessionalOccupation,
+		Address:                req.Address,
 		CompanyName:            req.CompanyName,
 		TradingName:            req.TradingName,
 		AnnualRevenue:          req.AnnualRevenue,

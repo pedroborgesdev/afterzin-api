@@ -9,22 +9,35 @@ import (
 type CreateRecipientParams struct {
 	Name                   string
 	Email                  string
-	Phone                  string // PF/PJ
-	Document               string // CPF or CNPJ
-	DocumentType           string // "CPF" ou "CNPJ"
-	Type                   string // "individual" ou "company"
-	Birthdate              string // PF
-	MonthlyIncome          int    // PF
-	ProfessionalOccupation string // PF
-	CompanyName            string // PJ
-	TradingName            string // PJ
-	AnnualRevenue          int    // PJ
-	BankCode               string // e.g. "001", "341"
+	Phone                  string   // PF/PJ
+	Document               string   // CPF or CNPJ
+	DocumentType           string   // "CPF" ou "CNPJ"
+	Type                   string   // "individual" ou "company"
+	Birthdate              string   // PF
+	MonthlyIncome          int      // PF
+	ProfessionalOccupation string   // PF
+	Address                *Address // PF
+	CompanyName            string   // PJ
+	TradingName            string   // PJ
+	AnnualRevenue          int      // PJ
+	BankCode               string   // e.g. "001", "341"
 	BranchNumber           string
 	BranchCheckDigit       string
 	AccountNumber          string
 	AccountCheckDigit      string
 	AccountType            string // "checking" ou "savings"
+}
+
+// Address for PF
+type Address struct {
+	Street         string `json:"street"`
+	Complementary  string `json:"complementary"`
+	StreetNumber   string `json:"street_number"`
+	Neighborhood   string `json:"neighborhood"`
+	City           string `json:"city"`
+	State          string `json:"state"`
+	ZipCode        string `json:"zip_code"`
+	ReferencePoint string `json:"reference_point"`
 }
 
 // RecipientResult contains the recipient data returned after creation.
@@ -75,6 +88,18 @@ func (c *Client) CreateRecipient(params CreateRecipientParams) (*RecipientResult
 		registerInfo["birthdate"] = params.Birthdate
 		registerInfo["monthly_income"] = params.MonthlyIncome
 		registerInfo["professional_occupation"] = params.ProfessionalOccupation
+		if params.Address != nil {
+			registerInfo["address"] = map[string]interface{}{
+				"street":          params.Address.Street,
+				"complementary":   params.Address.Complementary,
+				"street_number":   params.Address.StreetNumber,
+				"neighborhood":    params.Address.Neighborhood,
+				"city":            params.Address.City,
+				"state":           params.Address.State,
+				"zip_code":        params.Address.ZipCode,
+				"reference_point": params.Address.ReferencePoint,
+			}
+		}
 	} else {
 		registerInfo["company_name"] = params.CompanyName
 		registerInfo["trading_name"] = params.TradingName
