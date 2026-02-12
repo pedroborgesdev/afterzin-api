@@ -167,17 +167,36 @@ input TicketTypeInput {
   maxQuantity: Int!
 }
 
+"""
+Input para seleção de ingressos no checkout.
+Cada item representa um tipo de ingresso para uma data específica do evento.
+"""
 input CheckoutItemInput {
+  """ID da data do evento (EventDate)"""
   eventDateId: ID!
+
+  """ID do tipo de ingresso (TicketType)"""
   ticketTypeId: ID!
+
+  """Quantidade de ingressos (1-10)"""
   quantity: Int!
 }
 
+"""
+Input para criação de sessão de checkout.
+Cria uma ordem pendente (PENDING) com expiração de 30 minutos.
+"""
 input CheckoutInput {
+  """Lista de itens a serem comprados (não pode estar vazia)"""
   items: [CheckoutItemInput!]!
 }
 
+"""
+Input para confirmação de pagamento de checkout.
+IMPORTANTE: Apenas pagamento via PIX é aceito.
+"""
 input CheckoutPayInput {
+  """ID do checkout retornado pelo checkoutPreview"""
   checkoutId: ID!
 }
 
@@ -231,8 +250,27 @@ type Mutation {
   createEventDate(eventId: ID!, input: EventDateInput!): EventDate!
   createLot(dateId: ID!, input: LotInput!): Lot!
   createTicketType(lotId: ID!, input: TicketTypeInput!): TicketType!
+
+  """
+  Cria uma sessão de checkout para compra de ingressos.
+  Valida disponibilidade, calcula valores e cria ordem pendente (PENDING).
+  A ordem expira em 30 minutos se não for paga.
+
+  IMPORTANTE: Apenas PIX é aceito como método de pagamento.
+  Use o endpoint REST /v1/payment/create com o checkoutId retornado
+  para gerar o QR code PIX.
+  """
   checkoutPreview(input: CheckoutInput!): CheckoutPreviewResult!
+
+  """
+  Confirma o pagamento de um checkout e cria os ingressos.
+  Este método é chamado automaticamente pelo webhook após confirmação do PIX.
+
+  IMPORTANTE: O pagamento é processado exclusivamente via PIX.
+  O usuário deve pagar o QR code gerado antes de chamar este método.
+  """
   checkoutPay(input: CheckoutPayInput!): CheckoutPayResult!
+
   updateProfilePhoto(photoBase64: String!): User!
   validateTicket(eventId: ID!, qrCode: String!): ValidateTicketResult!
 }

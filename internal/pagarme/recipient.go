@@ -77,44 +77,44 @@ func (c *Client) CreateRecipient(params CreateRecipientParams) (*RecipientResult
 		})
 	}
 
-	       registerInfo := map[string]interface{}{
-		       "email":         params.Email,
-		       "document":      params.Document,
-		       "type":          params.Type,
-		       "phone_numbers": phoneNumbers,
-	       }
-	       if params.Type == "individual" {
-		       registerInfo["name"] = params.Name
-		       // Formatar birthdate para dd/MM/yyyy se vier como yyyy-MM-dd
-		       birthdate := params.Birthdate
-		       matched, _ := regexp.MatchString(`^\d{4}-\d{2}-\d{2}$`, birthdate)
-		       if matched {
-			       // yyyy-MM-dd → dd/MM/yyyy
-			       year := birthdate[0:4]
-			       month := birthdate[5:7]
-			       day := birthdate[8:10]
-			       birthdate = day + "/" + month + "/" + year
-		       }
-		       registerInfo["birthdate"] = birthdate
-		       registerInfo["monthly_income"] = params.MonthlyIncome
-		       registerInfo["professional_occupation"] = params.ProfessionalOccupation
-		       if params.Address != nil {
-			       registerInfo["address"] = map[string]interface{}{
-				       "street":          params.Address.Street,
-				       "complementary":   params.Address.Complementary,
-				       "street_number":   params.Address.StreetNumber,
-				       "neighborhood":    params.Address.Neighborhood,
-				       "city":            params.Address.City,
-				       "state":           params.Address.State,
-				       "zip_code":        params.Address.ZipCode,
-				       "reference_point": params.Address.ReferencePoint,
-			       }
-		       }
-	       } else {
-		       registerInfo["company_name"] = params.CompanyName
-		       registerInfo["trading_name"] = params.TradingName
-		       registerInfo["annual_revenue"] = params.AnnualRevenue
-	       }
+	registerInfo := map[string]interface{}{
+		"email":         params.Email,
+		"document":      params.Document,
+		"type":          params.Type,
+		"phone_numbers": phoneNumbers,
+	}
+	if params.Type == "individual" {
+		registerInfo["name"] = params.Name
+		// Formatar birthdate para dd/MM/yyyy se vier como yyyy-MM-dd
+		birthdate := params.Birthdate
+		matched, _ := regexp.MatchString(`^\d{4}-\d{2}-\d{2}$`, birthdate)
+		if matched {
+			// yyyy-MM-dd → dd/MM/yyyy
+			year := birthdate[0:4]
+			month := birthdate[5:7]
+			day := birthdate[8:10]
+			birthdate = day + "/" + month + "/" + year
+		}
+		registerInfo["birthdate"] = birthdate
+		registerInfo["monthly_income"] = params.MonthlyIncome
+		registerInfo["professional_occupation"] = params.ProfessionalOccupation
+		if params.Address != nil {
+			registerInfo["address"] = map[string]interface{}{
+				"street":          params.Address.Street,
+				"complementary":   params.Address.Complementary,
+				"street_number":   params.Address.StreetNumber,
+				"neighborhood":    params.Address.Neighborhood,
+				"city":            params.Address.City,
+				"state":           params.Address.State,
+				"zip_code":        params.Address.ZipCode,
+				"reference_point": params.Address.ReferencePoint,
+			}
+		}
+	} else {
+		registerInfo["company_name"] = params.CompanyName
+		registerInfo["trading_name"] = params.TradingName
+		registerInfo["annual_revenue"] = params.AnnualRevenue
+	}
 
 	bankAccount := map[string]interface{}{
 		"holder_name":         params.Name,

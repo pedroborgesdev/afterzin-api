@@ -47,6 +47,23 @@ type PixOrderResult struct {
 //  4. Customer scans/pastes in banking app
 //  5. Webhook order.paid fires when payment is confirmed
 func (c *Client) CreatePixOrder(params PixOrderParams) (*PixOrderResult, error) {
+	// Validar parâmetros obrigatórios
+	if params.AmountCentavos <= 0 {
+		return nil, fmt.Errorf("amount deve ser maior que zero (recebido: %d)", params.AmountCentavos)
+	}
+	if params.CustomerDocument == "" {
+		return nil, fmt.Errorf("documento do cliente é obrigatório")
+	}
+	if len(params.Items) == 0 {
+		return nil, fmt.Errorf("items não pode estar vazio")
+	}
+	if params.CustomerName == "" {
+		return nil, fmt.Errorf("nome do cliente é obrigatório")
+	}
+	if params.CustomerEmail == "" {
+		return nil, fmt.Errorf("email do cliente é obrigatório")
+	}
+
 	// Calculate split amounts
 	platformFee := c.ApplicationFee * int64(params.TotalTickets)
 	producerAmount := params.AmountCentavos - platformFee
@@ -97,21 +114,15 @@ func (c *Client) CreatePixOrder(params PixOrderParams) (*PixOrderResult, error) 
 			"name":          params.CustomerName,
 			"email":         params.CustomerEmail,
 			"document":      params.CustomerDocument,
-			"document_type": "CPF",
-			"type":          "individual",
+			"document_type": AllowedDocumentType, // Apenas CPF é aceito
+			"type":          AllowedCustomerType, // Apenas pessoa física
 		},
 		"items": items,
 		"payments": []map[string]interface{}{
 			{
-				"payment_method": "pix",
+				"payment_method": AllowedPaymentMethod, // Apenas PIX é permitido
 				"pix": map[string]interface{}{
-					"expires_in": 900, // 15 minutes
-					"additional_information": []map[string]interface{}{
-						{
-							"name":  "Afterzin",
-							"value": params.Description,
-						},
-					},
+					"expires_in": PixExpirationSeconds, // 15 minutos (900 segundos)
 				},
 				"amount": params.AmountCentavos,
 				"split":  split,

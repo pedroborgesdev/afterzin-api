@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"regexp"
 
 	"afterzin/api/internal/config"
 	"afterzin/api/internal/middleware"
@@ -38,6 +39,11 @@ func respondJSON(w http.ResponseWriter, status int, data interface{}) {
 
 func respondError(w http.ResponseWriter, status int, message string) {
 	respondJSON(w, status, map[string]string{"error": message})
+}
+
+// sanitizeDocument remove todos os caracteres não numéricos de um documento (CPF/CNPJ).
+func sanitizeDocument(doc string) string {
+	return regexp.MustCompile(`[^\d]`).ReplaceAllString(doc, "")
 }
 
 // ---------- Recipient Management ----------
@@ -307,6 +313,13 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sanitizar e validar CPF do comprador
+	sanitizedCPF := sanitizeDocument(buyer.CPF)
+	if len(sanitizedCPF) != 11 {
+		respondError(w, http.StatusBadRequest, fmt.Sprintf("CPF inválido: deve conter 11 dígitos (recebido %d)", len(sanitizedCPF)))
+		return
+	}
+
 	// Calculate total amount, resolve producer recipient, build order items
 	var producerRecipientID string
 	var totalCentavos int64
@@ -315,6 +328,12 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 	var orderItems []OrderItem
 
 	for _, item := range items {
+		// Validar quantidade
+		if item.Quantity <= 0 {
+			respondError(w, http.StatusBadRequest, fmt.Sprintf("quantidade do item deve ser maior que zero (item: %s)", item.TicketTypeID))
+			return
+		}
+
 		totalTickets += item.Quantity
 
 		tt, _ := repository.TicketTypeByID(h.db, item.TicketTypeID)
@@ -322,6 +341,13 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 			respondError(w, http.StatusBadRequest, "tipo de ingresso não encontrado")
 			return
 		}
+
+		// Validar preço unitário
+		if tt.Price <= 0 {
+			respondError(w, http.StatusBadRequest, fmt.Sprintf("preço unitário deve ser maior que zero (ticket: %s)", item.TicketTypeID))
+			return
+		}
+
 		totalCentavos += int64(tt.Price*100) * int64(item.Quantity)
 
 		// Resolve event → producer → recipient
@@ -356,6 +382,16 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Validar valor total
+	if totalCentavos <= 0 {
+		respondError(w, http.StatusBadRequest, "valor total deve ser maior que zero")
+		return
+	}
+
+	// Log estruturado antes de enviar ao Pagar.me
+	log.Printf("[CreatePayment] Enviando ao Pagar.me: orderID=%s, total=%d centavos, items=%d, tickets=%d, method=%s",
+		req.OrderID, totalCentavos, len(orderItems), totalTickets, AllowedPaymentMethod)
+
 	// Create Pagar.me order with PIX + split
 	pixResult, err := h.client.CreatePixOrder(PixOrderParams{
 		OrderID:             req.OrderID,
@@ -365,7 +401,7 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		Description:         fmt.Sprintf("Afterzin - %s", eventTitle),
 		CustomerName:        buyer.Name,
 		CustomerEmail:       buyer.Email,
-		CustomerDocument:    buyer.CPF,
+		CustomerDocument:    sanitizedCPF, // CPF sanitizado (apenas dígitos)
 		Items:               orderItems,
 	})
 	if err != nil {
