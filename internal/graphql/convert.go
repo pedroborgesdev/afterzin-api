@@ -15,15 +15,28 @@ func userRowToModel(u *repository.UserRow) *model.User {
 	if u.PhotoURL.Valid {
 		photoURL = &u.PhotoURL.String
 	}
+	var phoneCountryCode, phoneAreaCode, phoneNumber string
+	if u.PhoneCountryCode.Valid {
+		phoneCountryCode = u.PhoneCountryCode.String
+	}
+	if u.PhoneAreaCode.Valid {
+		phoneAreaCode = u.PhoneAreaCode.String
+	}
+	if u.PhoneNumber.Valid {
+		phoneNumber = u.PhoneNumber.String
+	}
 	return &model.User{
-		ID:        u.ID,
-		Name:      u.Name,
-		Email:     u.Email,
-		Cpf:       u.CPF,
-		BirthDate: u.BirthDate,
-		PhotoURL:  photoURL,
-		Role:      model.UserRole(u.Role),
-		CreatedAt: u.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		ID:               u.ID,
+		Name:             u.Name,
+		Email:            u.Email,
+		Cpf:              u.CPF,
+		BirthDate:        u.BirthDate,
+		PhoneCountryCode: phoneCountryCode,
+		PhoneAreaCode:    phoneAreaCode,
+		PhoneNumber:      phoneNumber,
+		PhotoURL:         photoURL,
+		Role:             model.UserRole(u.Role),
+		CreatedAt:        u.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
 

@@ -8,47 +8,98 @@ import (
 	"afterzin/api/internal/auth"
 	"afterzin/api/internal/graphql/model"
 	"afterzin/api/internal/middleware"
+	"afterzin/api/internal/pagarme"
 	"afterzin/api/internal/qrcode"
 	"afterzin/api/internal/repository"
 	"context"
 	"errors"
+	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
 )
 
+// sanitizeDocument remove caracteres não numéricos de documentos (CPF/CNPJ)
+func sanitizeDocument(doc string) string {
+	return regexp.MustCompile(`[^\d]`).ReplaceAllString(doc, "")
+}
+
 // Register is the resolver for the register field.
 func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error) {
+	// 1. Verifica email único
 	existing, _ := repository.UserByEmail(r.DB, input.Email)
 	if existing != nil {
 		return nil, errors.New("email já cadastrado")
 	}
+
+	// 2. Sanitizar e validar CPF
+	sanitizedCPF := sanitizeDocument(input.Cpf)
+	if len(sanitizedCPF) != 11 {
+		return nil, fmt.Errorf("CPF inválido: deve conter 11 dígitos")
+	}
+
+	// 3. Sanitizar e validar telefone
+	phoneCC := input.PhoneCountryCode
+	if phoneCC == "" {
+		phoneCC = "55" // Default Brasil
+	}
+
+	err := pagarme.ValidatePhone(phoneCC, input.PhoneAreaCode, input.PhoneNumber)
+	if err != nil {
+		return nil, fmt.Errorf("telefone inválido: %w", err)
+	}
+
+	phone := pagarme.ParsePhone(phoneCC, input.PhoneAreaCode, input.PhoneNumber)
+
+	// 4. Hash de senha
 	hash, err := auth.HashPassword(input.Password)
 	if err != nil {
 		return nil, err
 	}
-	id, err := repository.CreateUser(r.DB, input.Name, input.Email, hash, input.Cpf, input.BirthDate)
+
+	// 5. Cria usuário com telefone
+	id, err := repository.CreateUser(
+		r.DB,
+		input.Name,
+		input.Email,
+		hash,
+		sanitizedCPF,
+		input.BirthDate,
+		&phone.CountryCode,
+		&phone.AreaCode,
+		&phone.Number,
+	)
 	if err != nil {
 		return nil, err
 	}
+
+	// 6. Busca usuário
 	user, err := repository.UserByID(r.DB, id)
 	var userModel *model.User
 	if user != nil {
 		userModel = userRowToModel(user)
 	} else {
-		// Schema requires non-null user; build from input if fetch failed (e.g. SQLite datetime)
+		// Schema requires non-null user; build from input if fetch failed
 		userModel = &model.User{
-			ID:        id,
-			Name:      input.Name,
-			Email:     input.Email,
-			Cpf:       input.Cpf,
-			BirthDate: input.BirthDate,
-			PhotoURL:  nil,
-			Role:      model.UserRoleUser,
-			CreatedAt: time.Now().UTC().Format("2006-01-02T15:04:05Z07:00"),
+			ID:               id,
+			Name:             input.Name,
+			Email:            input.Email,
+			Cpf:              sanitizedCPF,
+			BirthDate:        input.BirthDate,
+			PhoneCountryCode: phone.CountryCode,
+			PhoneAreaCode:    phone.AreaCode,
+			PhoneNumber:      phone.Number,
+			PhotoURL:         nil,
+			Role:             model.UserRoleUser,
+			CreatedAt:        time.Now().UTC().Format("2006-01-02T15:04:05Z07:00"),
 		}
 	}
+
+	// 7. Gera token
 	token, _ := auth.NewToken(id, "USER", r.Config.JWTSecret, 24*time.Hour)
+
+	// 8. Retorna
 	return &model.AuthPayload{Token: token, User: userModel}, nil
 }
 
@@ -383,6 +434,42 @@ func (r *mutationResolver) UpdateProfilePhoto(ctx context.Context, photoBase64 s
 		return nil, err
 	}
 	user, _ := repository.UserByID(r.DB, userID)
+	return userRowToModel(user), nil
+}
+
+// UpdatePhone is the resolver for the updatePhone field.
+func (r *mutationResolver) UpdatePhone(ctx context.Context, phoneCountryCode, phoneAreaCode, phoneNumber string) (*model.User, error) {
+	userID := middleware.UserID(ctx)
+	if userID == "" {
+		return nil, errors.New("não autenticado")
+	}
+
+	// Validar country code default
+	if phoneCountryCode == "" {
+		phoneCountryCode = "55" // Default Brasil
+	}
+
+	// Validar telefone
+	err := pagarme.ValidatePhone(phoneCountryCode, phoneAreaCode, phoneNumber)
+	if err != nil {
+		return nil, fmt.Errorf("telefone inválido: %w", err)
+	}
+
+	// Parsear e sanitizar
+	phone := pagarme.ParsePhone(phoneCountryCode, phoneAreaCode, phoneNumber)
+
+	// Atualizar no banco
+	err = repository.UpdateUserPhone(r.DB, userID, phone.CountryCode, phone.AreaCode, phone.Number)
+	if err != nil {
+		return nil, err
+	}
+
+	// Retornar usuário atualizado
+	user, err := repository.UserByID(r.DB, userID)
+	if err != nil {
+		return nil, err
+	}
+
 	return userRowToModel(user), nil
 }
 

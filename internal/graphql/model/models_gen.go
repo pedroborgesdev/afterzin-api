@@ -137,11 +137,14 @@ type Query struct {
 }
 
 type RegisterInput struct {
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Password  string `json:"password"`
-	Cpf       string `json:"cpf"`
-	BirthDate string `json:"birthDate"`
+	Name             string `json:"name"`
+	Email            string `json:"email"`
+	Password         string `json:"password"`
+	Cpf              string `json:"cpf"`
+	BirthDate        string `json:"birthDate"`
+	PhoneCountryCode string `json:"phoneCountryCode"`
+	PhoneAreaCode    string `json:"phoneAreaCode"`
+	PhoneNumber      string `json:"phoneNumber"`
 }
 
 type Ticket struct {
@@ -185,14 +188,17 @@ type UpdateEventInput struct {
 }
 
 type User struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Email     string   `json:"email"`
-	Cpf       string   `json:"cpf"`
-	BirthDate string   `json:"birthDate"`
-	PhotoURL  *string  `json:"photoUrl,omitempty"`
-	Role      UserRole `json:"role"`
-	CreatedAt string   `json:"createdAt"`
+	ID               string   `json:"id"`
+	Name             string   `json:"name"`
+	Email            string   `json:"email"`
+	Cpf              string   `json:"cpf"`
+	BirthDate        string   `json:"birthDate"`
+	PhotoURL         *string  `json:"photoUrl,omitempty"`
+	Role             UserRole `json:"role"`
+	CreatedAt        string   `json:"createdAt"`
+	PhoneCountryCode string   `json:"phoneCountryCode"`
+	PhoneAreaCode    string   `json:"phoneAreaCode"`
+	PhoneNumber      string   `json:"phoneNumber"`
 }
 
 // Resultado da validação de ingresso por QR Code.

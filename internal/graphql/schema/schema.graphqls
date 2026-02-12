@@ -27,6 +27,9 @@ type User {
   email: String!
   cpf: String!
   birthDate: Date!
+  phoneCountryCode: String
+  phoneAreaCode: String
+  phoneNumber: String
   photoUrl: String
   role: UserRole!
   createdAt: DateTime!
@@ -115,12 +118,19 @@ type AuthPayload {
   user: User!
 }
 
+"""
+Input para registro de novo usuário.
+Telefone é obrigatório para integração com gateway de pagamento.
+"""
 input RegisterInput {
   name: String!
   email: String!
   password: String!
   cpf: String!
   birthDate: Date!
+  phoneCountryCode: String!
+  phoneAreaCode: String!
+  phoneNumber: String!
 }
 
 input LoginInput {
@@ -272,5 +282,17 @@ type Mutation {
   checkoutPay(input: CheckoutPayInput!): CheckoutPayResult!
 
   updateProfilePhoto(photoBase64: String!): User!
+
+  """
+  Atualiza o telefone do usuário autenticado.
+  Usado para migração de usuários existentes que não possuem telefone cadastrado.
+  Telefone é obrigatório para realizar compras.
+  """
+  updatePhone(
+    phoneCountryCode: String!
+    phoneAreaCode: String!
+    phoneNumber: String!
+  ): User!
+
   validateTicket(eventId: ID!, qrCode: String!): ValidateTicketResult!
 }

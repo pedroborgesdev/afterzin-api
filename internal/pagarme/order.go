@@ -12,6 +12,7 @@ type PixOrderParams struct {
 	CustomerName        string      // Buyer's name
 	CustomerEmail       string      // Buyer's email
 	CustomerDocument    string      // Buyer's CPF
+	CustomerPhone       *PhoneData  // Buyer's phone (optional for backward compatibility)
 	Items               []OrderItem // Line items
 }
 
@@ -108,16 +109,30 @@ func (c *Client) CreatePixOrder(params PixOrderParams) (*PixOrderResult, error) 
 		})
 	}
 
+	// Build customer data
+	customer := map[string]interface{}{
+		"name":          params.CustomerName,
+		"email":         params.CustomerEmail,
+		"document":      params.CustomerDocument,
+		"document_type": AllowedDocumentType, // Apenas CPF é aceito
+		"type":          AllowedCustomerType, // Apenas pessoa física
+	}
+
+	// Add phone if available
+	if params.CustomerPhone != nil {
+		customer["phones"] = map[string]interface{}{
+			"mobile_phone": map[string]interface{}{
+				"country_code": params.CustomerPhone.CountryCode,
+				"area_code":    params.CustomerPhone.AreaCode,
+				"number":       params.CustomerPhone.Number,
+			},
+		}
+	}
+
 	body := map[string]interface{}{
-		"code": params.OrderID,
-		"customer": map[string]interface{}{
-			"name":          params.CustomerName,
-			"email":         params.CustomerEmail,
-			"document":      params.CustomerDocument,
-			"document_type": AllowedDocumentType, // Apenas CPF é aceito
-			"type":          AllowedCustomerType, // Apenas pessoa física
-		},
-		"items": items,
+		"code":     params.OrderID,
+		"customer": customer,
+		"items":    items,
 		"payments": []map[string]interface{}{
 			{
 				"payment_method": AllowedPaymentMethod, // Apenas PIX é permitido

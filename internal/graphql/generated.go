@@ -11284,9 +11284,9 @@ func (ec *executionContext) unmarshalOID2ᚕstringᚄ(ctx context.Context, v int
 		return nil, nil
 	}
 	var vSlice []interface{}
-	if v != nil {
-		vSlice = graphql.CoerceList(v)
-	}
+
+	vSlice = graphql.CoerceList(v)
+
 	var err error
 	res := make([]string, len(vSlice))
 	for i := range vSlice {

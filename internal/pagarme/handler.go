@@ -388,9 +388,19 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Extrair telefone do comprador (se disponível)
+	var customerPhone *PhoneData
+	if buyer.PhoneCountryCode.Valid && buyer.PhoneAreaCode.Valid && buyer.PhoneNumber.Valid {
+		customerPhone = &PhoneData{
+			CountryCode: buyer.PhoneCountryCode.String,
+			AreaCode:    buyer.PhoneAreaCode.String,
+			Number:      buyer.PhoneNumber.String,
+		}
+	}
+
 	// Log estruturado antes de enviar ao Pagar.me
-	log.Printf("[CreatePayment] Enviando ao Pagar.me: orderID=%s, total=%d centavos, items=%d, tickets=%d, method=%s",
-		req.OrderID, totalCentavos, len(orderItems), totalTickets, AllowedPaymentMethod)
+	log.Printf("[CreatePayment] Enviando ao Pagar.me: orderID=%s, total=%d centavos, items=%d, tickets=%d, method=%s, hasPhone=%v",
+		req.OrderID, totalCentavos, len(orderItems), totalTickets, AllowedPaymentMethod, customerPhone != nil)
 
 	// Create Pagar.me order with PIX + split
 	pixResult, err := h.client.CreatePixOrder(PixOrderParams{
@@ -402,6 +412,7 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		CustomerName:        buyer.Name,
 		CustomerEmail:       buyer.Email,
 		CustomerDocument:    sanitizedCPF, // CPF sanitizado (apenas dígitos)
+		CustomerPhone:       customerPhone, // Telefone estruturado (opcional)
 		Items:               orderItems,
 	})
 	if err != nil {
