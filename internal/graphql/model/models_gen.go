@@ -3,6 +3,7 @@
 package model
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strconv"
@@ -13,17 +14,28 @@ type AuthPayload struct {
 	User  *User  `json:"user"`
 }
 
+// Input para criação de sessão de checkout.
+// Cria uma ordem pendente (PENDING) com expiração de 30 minutos.
 type CheckoutInput struct {
+	// Lista de itens a serem comprados (não pode estar vazia)
 	Items []*CheckoutItemInput `json:"items"`
 }
 
+// Input para seleção de ingressos no checkout.
+// Cada item representa um tipo de ingresso para uma data específica do evento.
 type CheckoutItemInput struct {
-	EventDateID  string `json:"eventDateId"`
+	// ID da data do evento (EventDate)
+	EventDateID string `json:"eventDateId"`
+	// ID do tipo de ingresso (TicketType)
 	TicketTypeID string `json:"ticketTypeId"`
-	Quantity     int    `json:"quantity"`
+	// Quantidade de ingressos (1-10)
+	Quantity int `json:"quantity"`
 }
 
+// Input para confirmação de pagamento de checkout.
+// IMPORTANTE: Apenas pagamento via PIX é aceito.
 type CheckoutPayInput struct {
+	// ID do checkout retornado pelo checkoutPreview
 	CheckoutID string `json:"checkoutId"`
 }
 
@@ -136,6 +148,8 @@ type ProducerPublicProfile struct {
 type Query struct {
 }
 
+// Input para registro de novo usuário.
+// Telefone é obrigatório para integração com gateway de pagamento.
 type RegisterInput struct {
 	Name             string `json:"name"`
 	Email            string `json:"email"`
@@ -193,12 +207,12 @@ type User struct {
 	Email            string   `json:"email"`
 	Cpf              string   `json:"cpf"`
 	BirthDate        string   `json:"birthDate"`
+	PhoneCountryCode *string  `json:"phoneCountryCode,omitempty"`
+	PhoneAreaCode    *string  `json:"phoneAreaCode,omitempty"`
+	PhoneNumber      *string  `json:"phoneNumber,omitempty"`
 	PhotoURL         *string  `json:"photoUrl,omitempty"`
 	Role             UserRole `json:"role"`
 	CreatedAt        string   `json:"createdAt"`
-	PhoneCountryCode string   `json:"phoneCountryCode"`
-	PhoneAreaCode    string   `json:"phoneAreaCode"`
-	PhoneNumber      string   `json:"phoneNumber"`
 }
 
 // Resultado da validação de ingresso por QR Code.
@@ -237,7 +251,7 @@ func (e AudienceType) String() string {
 	return string(e)
 }
 
-func (e *AudienceType) UnmarshalGQL(v interface{}) error {
+func (e *AudienceType) UnmarshalGQL(v any) error {
 	str, ok := v.(string)
 	if !ok {
 		return fmt.Errorf("enums must be strings")
@@ -252,6 +266,20 @@ func (e *AudienceType) UnmarshalGQL(v interface{}) error {
 
 func (e AudienceType) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AudienceType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AudienceType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type EventStatus string
@@ -282,7 +310,7 @@ func (e EventStatus) String() string {
 	return string(e)
 }
 
-func (e *EventStatus) UnmarshalGQL(v interface{}) error {
+func (e *EventStatus) UnmarshalGQL(v any) error {
 	str, ok := v.(string)
 	if !ok {
 		return fmt.Errorf("enums must be strings")
@@ -297,6 +325,20 @@ func (e *EventStatus) UnmarshalGQL(v interface{}) error {
 
 func (e EventStatus) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *EventStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e EventStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type UserRole string
@@ -325,7 +367,7 @@ func (e UserRole) String() string {
 	return string(e)
 }
 
-func (e *UserRole) UnmarshalGQL(v interface{}) error {
+func (e *UserRole) UnmarshalGQL(v any) error {
 	str, ok := v.(string)
 	if !ok {
 		return fmt.Errorf("enums must be strings")
@@ -340,4 +382,18 @@ func (e *UserRole) UnmarshalGQL(v interface{}) error {
 
 func (e UserRole) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *UserRole) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e UserRole) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
