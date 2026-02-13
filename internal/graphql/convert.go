@@ -15,15 +15,15 @@ func userRowToModel(u *repository.UserRow) *model.User {
 	if u.PhotoURL.Valid {
 		photoURL = &u.PhotoURL.String
 	}
-	var phoneCountryCode, phoneAreaCode, phoneNumber string
+	var phoneCountryCode, phoneAreaCode, phoneNumber *string
 	if u.PhoneCountryCode.Valid {
-		phoneCountryCode = u.PhoneCountryCode.String
+		phoneCountryCode = &u.PhoneCountryCode.String
 	}
 	if u.PhoneAreaCode.Valid {
-		phoneAreaCode = u.PhoneAreaCode.String
+		phoneAreaCode = &u.PhoneAreaCode.String
 	}
 	if u.PhoneNumber.Valid {
-		phoneNumber = u.PhoneNumber.String
+		phoneNumber = &u.PhoneNumber.String
 	}
 	return &model.User{
 		ID:               u.ID,

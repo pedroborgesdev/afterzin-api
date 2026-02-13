@@ -41,8 +41,6 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
-	__InputValue() __InputValueResolver
-	__Type() __TypeResolver
 }
 
 type DirectiveRoot struct {
@@ -221,13 +219,6 @@ type QueryResolver interface {
 	MyTicket(ctx context.Context, id string) (*model.Ticket, error)
 	Me(ctx context.Context) (*model.User, error)
 	ProducerMe(ctx context.Context) (*model.Producer, error)
-}
-type __InputValueResolver interface {
-	IsDeprecated(ctx context.Context, obj *introspection.InputValue) (bool, error)
-	DeprecationReason(ctx context.Context, obj *introspection.InputValue) (*string, error)
-}
-type __TypeResolver interface {
-	IsOneOf(ctx context.Context, obj *introspection.Type) (*bool, error)
 }
 
 type executableSchema struct {
@@ -5949,7 +5940,7 @@ func (ec *executionContext) ___InputValue_isDeprecated(ctx context.Context, fiel
 		field,
 		ec.fieldContext___InputValue_isDeprecated,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.__InputValue().IsDeprecated(ctx, obj)
+			return obj.IsDeprecated(), nil
 		},
 		nil,
 		ec.marshalNBoolean2bool,
@@ -5963,7 +5954,7 @@ func (ec *executionContext) fieldContext___InputValue_isDeprecated(_ context.Con
 		Object:     "__InputValue",
 		Field:      field,
 		IsMethod:   true,
-		IsResolver: true,
+		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
 		},
@@ -5978,7 +5969,7 @@ func (ec *executionContext) ___InputValue_deprecationReason(ctx context.Context,
 		field,
 		ec.fieldContext___InputValue_deprecationReason,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.__InputValue().DeprecationReason(ctx, obj)
+			return obj.DeprecationReason(), nil
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -5992,7 +5983,7 @@ func (ec *executionContext) fieldContext___InputValue_deprecationReason(_ contex
 		Object:     "__InputValue",
 		Field:      field,
 		IsMethod:   true,
-		IsResolver: true,
+		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
 		},
@@ -6713,10 +6704,10 @@ func (ec *executionContext) ___Type_isOneOf(ctx context.Context, field graphql.C
 		field,
 		ec.fieldContext___Type_isOneOf,
 		func(ctx context.Context) (any, error) {
-			return ec.resolvers.__Type().IsOneOf(ctx, obj)
+			return obj.IsOneOf(), nil
 		},
 		nil,
-		ec.marshalOBoolean2ᚖbool,
+		ec.marshalOBoolean2bool,
 		true,
 		false,
 	)
@@ -6727,7 +6718,7 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 		Object:     "__Type",
 		Field:      field,
 		IsMethod:   true,
-		IsResolver: true,
+		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
 		},
@@ -8571,86 +8562,24 @@ func (ec *executionContext) ___InputValue(ctx context.Context, sel ast.Selection
 		case "name":
 			out.Values[i] = ec.___InputValue_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+				out.Invalids++
 			}
 		case "description":
 			out.Values[i] = ec.___InputValue_description(ctx, field, obj)
 		case "type":
 			out.Values[i] = ec.___InputValue_type(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+				out.Invalids++
 			}
 		case "defaultValue":
 			out.Values[i] = ec.___InputValue_defaultValue(ctx, field, obj)
 		case "isDeprecated":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec.___InputValue_isDeprecated(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
+			out.Values[i] = ec.___InputValue_isDeprecated(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
 			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "deprecationReason":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec.___InputValue_deprecationReason(ctx, field, obj)
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			out.Values[i] = ec.___InputValue_deprecationReason(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -8743,7 +8672,7 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 		case "kind":
 			out.Values[i] = ec.___Type_kind(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&out.Invalids, 1)
+				out.Invalids++
 			}
 		case "name":
 			out.Values[i] = ec.___Type_name(ctx, field, obj)
@@ -8764,38 +8693,7 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 		case "ofType":
 			out.Values[i] = ec.___Type_ofType(ctx, field, obj)
 		case "isOneOf":
-			field := field
-
-			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec.___Type_isOneOf(ctx, field, obj)
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			out.Values[i] = ec.___Type_isOneOf(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
