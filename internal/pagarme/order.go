@@ -112,6 +112,7 @@ func (c *Client) CreatePixOrder(params PixOrderParams) (*PixOrderResult, error) 
 	}
 
 	// Build customer data
+	fmt.Println(params.CustomerDocument)
 	customer := map[string]interface{}{
 		"name":          params.CustomerName,
 		"email":         params.CustomerEmail,
