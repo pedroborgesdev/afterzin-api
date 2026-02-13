@@ -89,10 +89,10 @@ func (c *Client) CreatePixOrder(params PixOrderParams) (*PixOrderResult, error) 
 			"recipient_id": params.ProducerRecipientID,
 			"amount":       producerAmount,
 			"type":         "flat",
-			"liable":       true,
 			"options": map[string]interface{}{
 				"charge_processing_fee": true,
 				"charge_remainder_fee":  true,
+				"liable":                true,
 			},
 		},
 	}
@@ -103,10 +103,10 @@ func (c *Client) CreatePixOrder(params PixOrderParams) (*PixOrderResult, error) 
 			"recipient_id": c.PlatformRecipientID,
 			"amount":       platformFee,
 			"type":         "flat",
-			"liable":       false,
 			"options": map[string]interface{}{
 				"charge_processing_fee": false,
 				"charge_remainder_fee":  false,
+				"liable":                false,
 			},
 		})
 	}
