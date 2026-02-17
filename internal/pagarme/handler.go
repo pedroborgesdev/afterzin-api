@@ -507,56 +507,68 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("[WEBHOOK] Recebendo webhook Pagar.me")
 	body, err := io.ReadAll(io.LimitReader(r.Body, 65536))
 	if err != nil {
+		log.Printf("[WEBHOOK] Erro ao ler corpo: %v", err)
 		respondError(w, http.StatusBadRequest, "erro ao ler corpo")
 		return
 	}
 
+	log.Printf("[WEBHOOK] Corpo recebido: %s", string(body))
+
 	sigHeader := r.Header.Get("x-hub-signature")
 	if sigHeader == "" {
+		log.Printf("[WEBHOOK] Assinatura ausente")
 		respondError(w, http.StatusBadRequest, "assinatura ausente")
 		return
 	}
 
+	log.Printf("[WEBHOOK] Assinatura recebida: %s", sigHeader)
+
 	event, err := h.client.VerifyWebhookSignature(body, sigHeader)
 	if err != nil {
-		log.Printf("pagarme: webhook signature error: %v", err)
+		log.Printf("[WEBHOOK] Erro na assinatura: %v", err)
 		respondError(w, http.StatusBadRequest, "assinatura inválida")
 		return
 	}
 
+	log.Printf("[WEBHOOK] Evento verificado: id=%s type=%s", event.ID, event.Type)
+
 	// Idempotency check - prevent processing same event twice
 	if repository.PagarmeWebhookEventExists(h.db, event.ID) {
-		log.Printf("[SKIP] pagarme: webhook event %s already received", event.ID)
+		log.Printf("[WEBHOOK] Evento %s já recebido, ignorando.", event.ID)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
 	// Log the event immediately (prevents duplicate processing if request retries)
 	if err := repository.InsertPagarmeWebhookEvent(h.db, event.ID, event.Type); err != nil {
-		log.Printf("[ERROR] pagarme: insert webhook event error: %v", err)
+		log.Printf("[WEBHOOK] Erro ao inserir evento no banco: %v", err)
 		respondError(w, http.StatusInternalServerError, "erro ao processar webhook")
 		return
 	}
 
-	log.Printf("[WEBHOOK_RECEIVED] event_id=%s type=%s", event.ID, event.Type)
+	log.Printf("[WEBHOOK] Evento registrado no banco: id=%s type=%s", event.ID, event.Type)
 
 	// Route by event type
 	switch event.Type {
 	case "order.paid":
+		log.Printf("[WEBHOOK] Processando evento order.paid")
 		h.handleOrderPaid(event)
 	case "charge.paid":
+		log.Printf("[WEBHOOK] Processando evento charge.paid")
 		h.handleChargePaid(event)
 	default:
-		log.Printf("[WARNING] pagarme: unhandled webhook event type: %s", event.Type)
+		log.Printf("[WEBHOOK] Tipo de evento não tratado: %s", event.Type)
 	}
 
 	// Mark as processed with timestamp
 	if err := repository.MarkPagarmeWebhookEventProcessedAt(h.db, event.ID); err != nil {
-		log.Printf("[WARNING] pagarme: mark event processed error (non-fatal): %v", err)
+		log.Printf("[WEBHOOK] Erro ao marcar evento como processado: %v", err)
 	}
 
+	log.Printf("[WEBHOOK] Processamento finalizado para evento: %s", event.ID)
 	w.WriteHeader(http.StatusOK)
 }
 
