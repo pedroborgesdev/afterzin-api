@@ -25,6 +25,50 @@ func sanitizeDocument(doc string) string {
 	return regexp.MustCompile(`[^\d]`).ReplaceAllString(doc, "")
 }
 
+// isValidCPF implements the standard CPF checksum validation.
+func isValidCPF(cpf string) bool {
+	if len(cpf) != 11 {
+		return false
+	}
+	// reject repeated digits
+	repeat := true
+	for i := 1; i < 11; i++ {
+		if cpf[i] != cpf[0] {
+			repeat = false
+			break
+		}
+	}
+	if repeat {
+		return false
+	}
+	toInt := func(b byte) int { return int(b - '0') }
+	// first digit
+	sum := 0
+	for i := 0; i < 9; i++ {
+		sum += toInt(cpf[i]) * (10 - i)
+	}
+	r := sum % 11
+	var d1 int
+	if r < 2 {
+		d1 = 0
+	} else {
+		d1 = 11 - r
+	}
+	// second digit
+	sum = 0
+	for i := 0; i < 10; i++ {
+		sum += toInt(cpf[i]) * (11 - i)
+	}
+	r = sum % 11
+	var d2 int
+	if r < 2 {
+		d2 = 0
+	} else {
+		d2 = 11 - r
+	}
+	return toInt(cpf[9]) == d1 && toInt(cpf[10]) == d2
+}
+
 // Register is the resolver for the register field.
 func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInput) (*model.AuthPayload, error) {
 	// 1. Verifica email único
@@ -37,6 +81,27 @@ func (r *mutationResolver) Register(ctx context.Context, input model.RegisterInp
 	sanitizedCPF := sanitizeDocument(input.Cpf)
 	if len(sanitizedCPF) != 11 {
 		return nil, fmt.Errorf("CPF inválido: deve conter 11 dígitos")
+	}
+	if !isValidCPF(sanitizedCPF) {
+		return nil, fmt.Errorf("CPF inválido: checksum falhou")
+	}
+
+	// Validate birth date and ensure user is at least 16 years old
+	var bd time.Time
+	if t, err := time.Parse("2006-01-02", input.BirthDate); err == nil {
+		bd = t
+	} else if t, err := time.Parse(time.RFC3339, input.BirthDate); err == nil {
+		bd = t
+	} else {
+		return nil, fmt.Errorf("data de nascimento inválida: formato esperado YYYY-MM-DD")
+	}
+	now := time.Now()
+	age := now.Year() - bd.Year()
+	if now.Month() < bd.Month() || (now.Month() == bd.Month() && now.Day() < bd.Day()) {
+		age--
+	}
+	if age < 16 {
+		return nil, fmt.Errorf("é necessário ter 16 anos ou mais para se registrar")
 	}
 
 	// 3. Sanitizar e validar telefone
