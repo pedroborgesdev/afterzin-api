@@ -197,6 +197,29 @@ func (c *Client) GetOrderStatus(pagarmeOrderID string) (*PixOrderResult, error) 
 	return pixResult, nil
 }
 
+// GetOrderPaidAmount retrieves the paid amount from a Pagar.me order.
+// Used for validating that the amount paid matches the order total (anti-fraud).
+func (c *Client) GetOrderPaidAmount(pagarmeOrderID string) (int64, error) {
+	result, err := c.GetOrder(pagarmeOrderID)
+	if err != nil {
+		return 0, fmt.Errorf("get order: %w", err)
+	}
+
+	// Check if order is actually paid
+	status, _ := result["status"].(string)
+	if status != "paid" {
+		return 0, fmt.Errorf("order not paid (status: %s)", status)
+	}
+
+	// Extract amount from order
+	amount, ok := result["amount"].(float64)
+	if !ok {
+		return 0, fmt.Errorf("no amount in order response")
+	}
+
+	return int64(amount), nil
+}
+
 // extractChargeData extracts charge ID and PIX transaction data from a Pagar.me order response.
 func extractChargeData(result map[string]interface{}, pixResult *PixOrderResult) {
 	charges, ok := result["charges"].([]interface{})

@@ -360,3 +360,50 @@ func UpdateEvent(db *sql.DB, eventID string, title, description, category, cover
 	_, err := db.Exec(q, args...)
 	return err
 }
+
+// ---------- Transactional versions ----------
+
+// EventByIDTx retrieves an event within a transaction.
+func EventByIDTx(tx *sql.Tx, id string) (*EventRow, error) {
+	var e EventRow
+	err := tx.QueryRow(`SELECT id, producer_id, title, description, category, cover_image, location, address, status, featured FROM events WHERE id = ?`, id).Scan(
+		&e.ID, &e.ProducerID, &e.Title, &e.Description, &e.Category, &e.CoverImage, &e.Location, &e.Address, &e.Status, &e.Featured,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
+// EventDateByIDTx retrieves an event date within a transaction.
+func EventDateByIDTx(tx *sql.Tx, id string) (*EventDateRow, error) {
+	var d EventDateRow
+	err := tx.QueryRow(`SELECT id, event_id, date, start_time, end_time FROM event_dates WHERE id = ?`, id).Scan(
+		&d.ID, &d.EventID, &d.Date, &d.StartTime, &d.EndTime,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+// TicketTypeByIDTx retrieves a ticket type within a transaction.
+func TicketTypeByIDTx(tx *sql.Tx, id string) (*TicketTypeRow, error) {
+	var t TicketTypeRow
+	err := tx.QueryRow(`SELECT id, lot_id, name, description, price, audience, max_quantity, sold_quantity FROM ticket_types WHERE id = ?`, id).Scan(
+		&t.ID, &t.LotID, &t.Name, &t.Description, &t.Price, &t.Audience, &t.MaxQuantity, &t.SoldQuantity,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
