@@ -411,7 +411,7 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		Description:         fmt.Sprintf("Afterzin - %s", eventTitle),
 		CustomerName:        buyer.Name,
 		CustomerEmail:       buyer.Email,
-		CustomerDocument:    sanitizedCPF, // CPF sanitizado (apenas dígitos)
+		CustomerDocument:    sanitizedCPF,  // CPF sanitizado (apenas dígitos)
 		CustomerPhone:       customerPhone, // Telefone estruturado (opcional)
 		Items:               orderItems,
 	})
@@ -495,6 +495,13 @@ func (h *Handler) GetPaymentStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	paid := pagarmeStatus.Status == "paid"
+
+	// If the external order is paid but our local order is still PENDING,
+	// process the payment (create tickets + confirm order) to keep DB in sync.
+	if paid && orderStatus == "PENDING" {
+		// Use the extracted charge id when available for QR traceability
+		go h.processOrderPayment(orderID, pagarmeStatus.PagarmeOrderID, pagarmeStatus.PagarmeChargeID)
+	}
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"status":         pagarmeStatus.Status,
@@ -632,14 +639,24 @@ func (h *Handler) processOrderPayment(orderID, pagarmeOrderID, chargeID string) 
 		repository.SetOrderPagarmeChargeID(h.db, orderID, chargeID)
 	}
 
-	// Verify order is still pending (idempotency)
-	orderUserID, status, _, err := repository.OrderByID(h.db, orderID)
+	// Get order owner and attempt to atomically claim the order for processing.
+	// We need the order user id to create tickets below.
+	orderUserID, _, _, err := repository.OrderByID(h.db, orderID)
 	if err != nil || orderUserID == "" {
 		log.Printf("pagarme: order %s not found", orderID)
 		return
 	}
-	if status != "PENDING" {
-		log.Printf("pagarme: order %s already %s, skipping ticket creation", orderID, status)
+
+	// Attempt to atomically claim the order for processing. This prevents
+	// concurrent workers (webhook + polling) from creating duplicate tickets.
+	claimed, err := repository.ClaimOrderProcessing(h.db, orderID)
+	if err != nil {
+		log.Printf("pagarme: claim order %s error: %v", orderID, err)
+		return
+	}
+	if !claimed {
+		// Order was not in PENDING state when attempting to claim; skip.
+		log.Printf("pagarme: order %s not pending (claim failed), skipping", orderID)
 		return
 	}
 
@@ -682,7 +699,7 @@ func (h *Handler) processOrderPayment(orderID, pagarmeOrderID, chargeID string) 
 		}
 	}
 
-	// Confirm the order
+	// Confirm the order (ConfirmOrder now accepts PROCESSING state as well)
 	if err := repository.ConfirmOrder(h.db, orderID); err != nil {
 		log.Printf("pagarme: confirm order %s error: %v", orderID, err)
 	}

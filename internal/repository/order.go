@@ -20,8 +20,22 @@ func OrderByID(db *sql.DB, id string) (userID string, status string, total float
 }
 
 func ConfirmOrder(db *sql.DB, orderID string) error {
-	_, err := db.Exec(`UPDATE orders SET status = 'PAID' WHERE id = ? AND status = 'PENDING'`, orderID)
+	_, err := db.Exec(`UPDATE orders SET status = 'PAID' WHERE id = ? AND status IN ('PENDING','PROCESSING')`, orderID)
 	return err
+}
+
+// ClaimOrderProcessing atomically marks an order as PROCESSING if it's currently PENDING.
+// Returns true if the claim succeeded (rows affected == 1).
+func ClaimOrderProcessing(db *sql.DB, orderID string) (bool, error) {
+	res, err := db.Exec(`UPDATE orders SET status = 'PROCESSING' WHERE id = ? AND status = 'PENDING'`, orderID)
+	if err != nil {
+		return false, err
+	}
+	ra, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return ra == 1, nil
 }
 
 func CreateOrderItem(db *sql.DB, orderID, eventDateID, ticketTypeID string, quantity int, unitPrice float64) (string, error) {
@@ -50,12 +64,12 @@ func OrderItemsByOrderID(db *sql.DB, orderID string) ([]OrderItemRow, error) {
 }
 
 type OrderItemRow struct {
-	ID            string
-	OrderID       string
-	EventDateID   string
-	TicketTypeID  string
-	Quantity      int
-	UnitPrice     float64
+	ID           string
+	OrderID      string
+	EventDateID  string
+	TicketTypeID string
+	Quantity     int
+	UnitPrice    float64
 }
 
 func CreateTicket(db *sql.DB, code, qrCode, orderID, orderItemID, userID, eventID, eventDateID, ticketTypeID string) (string, error) {
