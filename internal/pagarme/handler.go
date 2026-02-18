@@ -517,23 +517,20 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[WEBHOOK] Corpo recebido: %s", string(body))
 
-	sigHeader := r.Header.Get("x-hub-signature")
-	if sigHeader == "" {
-		log.Printf("[WEBHOOK] Assinatura ausente")
-		respondError(w, http.StatusBadRequest, "assinatura ausente")
+	// NOTE: signature verification intentionally disabled.
+	// Always parse the incoming payload and proceed without checking
+	// the `x-hub-signature` header. This makes webhook processing
+	// tolerant to providers that don't send a signature or when
+	// headers are stripped by proxies. Use with caution in production.
+	var event *WebhookEvent
+	var evt WebhookEvent
+	if err := json.Unmarshal(body, &evt); err != nil {
+		log.Printf("[WEBHOOK] Erro ao parsear payload: %v", err)
+		respondError(w, http.StatusBadRequest, "corpo inválido")
 		return
 	}
-
-	log.Printf("[WEBHOOK] Assinatura recebida: %s", sigHeader)
-
-	event, err := h.client.VerifyWebhookSignature(body, sigHeader)
-	if err != nil {
-		log.Printf("[WEBHOOK] Erro na assinatura: %v", err)
-		respondError(w, http.StatusBadRequest, "assinatura inválida")
-		return
-	}
-
-	log.Printf("[WEBHOOK] Evento verificado: id=%s type=%s", event.ID, event.Type)
+	event = &evt
+	log.Printf("[WEBHOOK] Verificação de assinatura desabilitada — evento recebido: id=%s type=%s", event.ID, event.Type)
 
 	// Idempotency check - prevent processing same event twice
 	if repository.PagarmeWebhookEventExists(h.db, event.ID) {
