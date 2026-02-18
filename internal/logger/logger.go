@@ -3,6 +3,7 @@ package logger
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -15,27 +16,40 @@ var (
 )
 
 func prefix(level string) string {
-	return fmt.Sprintf("[%s] %s ", level, time.Now().Format("2006-01-02T15:04:05"))
+	var color string
+	switch strings.ToUpper(level) {
+	case "DEBUG":
+		color = blue
+	case "INFO":
+		color = green
+	case "WARNING", "WARN":
+		color = yellow
+	case "ERROR", "ERR":
+		color = red
+	default:
+		color = reset
+	}
+	return fmt.Sprintf("[%s%s%s] - %s - ", color, strings.ToUpper(level), reset, time.Now().Format("2006-01-02T15:04:05"))
 }
 
 func Debugf(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Printf("%s%s%s%s\n", prefix("DEBUG"), blue, msg, reset)
+	fmt.Printf("%s%s\n", prefix("DEBUG"), msg)
 }
 
 func Infof(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Printf("%s%s%s%s\n", prefix("INFO"), green, msg, reset)
+	fmt.Printf("%s%s\n", prefix("INFO"), msg)
 }
 
 func Warnf(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Printf("%s%s%s%s\n", prefix("WARNING"), yellow, msg, reset)
+	fmt.Printf("%s%s\n", prefix("WARNING"), msg)
 }
 
 func Errorf(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
-	fmt.Printf("%s%s%s%s\n", prefix("ERROR"), red, msg, reset)
+	fmt.Printf("%s%s\n", prefix("ERROR"), msg)
 }
 
 func Fatalf(format string, a ...interface{}) {
