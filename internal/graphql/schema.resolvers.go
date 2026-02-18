@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -475,16 +476,11 @@ func (r *mutationResolver) UpdateProfilePhoto(ctx context.Context, photoBase64 s
 		return nil, errors.New("não autenticado")
 	}
 	payload := photoBase64
-	if len(payload) > 7 && (payload[:7] == "data:img" || payload[:10] == "data:image/") {
-		idx := 0
-		for i, c := range payload {
-			if c == ',' {
-				idx = i + 1
-				break
-			}
-		}
-		if idx > 0 {
-			payload = payload[idx:]
+	if len(payload) > 7 && (strings.HasPrefix(payload, "data:img") || strings.HasPrefix(payload, "data:image/")) {
+		// use last comma to handle cases where multiple data URI prefixes
+		// were concatenated (e.g. "data:image/jpeg;base64,data:image/png;base64,....")
+		if idx := strings.LastIndex(payload, ","); idx != -1 && idx+1 < len(payload) {
+			payload = payload[idx+1:]
 		}
 	}
 	if len(payload) > 300*1024 { // ~300 KB in base64 is ~400k chars; allow up to 400k for safety
