@@ -1,6 +1,9 @@
 package pagarme
 
-import "fmt"
+import (
+	"afterzin/api/internal/logger"
+	"fmt"
+)
 
 // PixOrderParams holds parameters for creating a Pagar.me order with PIX.
 type PixOrderParams struct {
@@ -112,7 +115,7 @@ func (c *Client) CreatePixOrder(params PixOrderParams) (*PixOrderResult, error) 
 	}
 
 	// Build customer data
-	fmt.Println(params.CustomerDocument)
+	logger.Debugf("criar pedido PIX - documento do cliente: %s", params.CustomerDocument)
 	customer := map[string]interface{}{
 		"name":          params.CustomerName,
 		"email":         params.CustomerEmail,

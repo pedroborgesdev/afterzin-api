@@ -1,35 +1,35 @@
 package main
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 
 	"afterzin/api/internal/config"
 	"afterzin/api/internal/db"
 	"afterzin/api/internal/db/seeds"
+	"afterzin/api/internal/logger"
 )
 
 func main() {
 	cfg := config.Load()
 
 	if err := os.MkdirAll(filepath.Dir(cfg.DBPath), 0755); err != nil {
-		log.Fatalf("create data dir: %v", err)
+		logger.Fatalf("erro ao criar diretório de dados: %v", err)
 	}
 
 	sqlite, err := db.OpenSQLite(cfg.DBPath)
 	if err != nil {
-		log.Fatalf("open db: %v", err)
+		logger.Fatalf("erro ao abrir banco de dados: %v", err)
 	}
 	defer sqlite.Close()
 
 	if err := db.Migrate(sqlite); err != nil {
-		log.Fatalf("migrate: %v", err)
+		logger.Fatalf("erro ao executar migrações: %v", err)
 	}
 
-	log.Println("Running seeds...")
+	logger.Infof("executando seeds...")
 	if err := seeds.Run(sqlite); err != nil {
-		log.Fatalf("seeds: %v", err)
+		logger.Fatalf("erro ao executar seeds: %v", err)
 	}
-	log.Println("Seeds completed successfully.")
+	logger.Infof("seeds finalizados com sucesso")
 }

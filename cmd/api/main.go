@@ -1,6 +1,7 @@
 package main
 
 import (
+	"afterzin/api/internal/logger"
 	"context"
 	"fmt"
 	"log"
@@ -27,7 +28,7 @@ func main() {
 	cfg := config.Load()
 
 	if err := os.MkdirAll(filepath.Dir(cfg.DBPath), 0755); err != nil {
-		log.Fatalf("create data dir: %v", err)
+		logger.Fatalf("erro ao criar diretório de dados: %v", err)
 	}
 
 	sqlite, err := db.OpenSQLite(cfg.DBPath)
@@ -37,7 +38,7 @@ func main() {
 	defer sqlite.Close()
 
 	if err := db.Migrate(sqlite); err != nil {
-		log.Fatalf("migrate: %v", err)
+		logger.Fatalf("erro ao executar migrações: %v", err)
 	}
 
 	graphqlHandler := graphql.NewHandler(sqlite, cfg)
@@ -61,9 +62,9 @@ func main() {
 		mux.HandleFunc("/v1/payment/create", pagarmeHandler.CreatePayment)
 		mux.HandleFunc("/v1/payment/status", pagarmeHandler.GetPaymentStatus)
 		mux.HandleFunc("/v1/webhook", pagarmeHandler.HandleWebhook)
-		log.Println("Pagar.me endpoints registered (Recipient + PIX Payment + Webhook)")
+		logger.Infof("endpoints do Pagar.me registrados (Recipient + PIX + Webhook)")
 	} else {
-		log.Println("PAGARME_API_KEY not set — Pagar.me endpoints disabled")
+		logger.Warnf("PAGARME_API_KEY não definido — endpoints do Pagar.me desabilitados")
 	}
 
 	handler := middleware.CORS(cfg.CORSOrigins)(middleware.Auth(cfg.JWTSecret)(mux))
@@ -76,22 +77,22 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 	}
 
-	log.Printf("GraphQL server listening on %s", addr)
+	logger.Infof("servidor GraphQL escutando em %s", addr)
 
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server: %v", err)
+			logger.Fatalf("erro no servidor: %v", err)
 		}
 	}()
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("shutting down...")
+	logger.Infof("encerrando...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := httpServer.Shutdown(ctx); err != nil {
-		log.Fatal(err)
+		logger.Fatalf("erro ao encerrar servidor: %v", err)
 	}
-	log.Println("server stopped")
+	logger.Infof("servidor parado")
 }

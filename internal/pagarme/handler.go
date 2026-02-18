@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"regexp"
 
 	"afterzin/api/internal/config"
+	"afterzin/api/internal/logger"
 	"afterzin/api/internal/middleware"
 	"afterzin/api/internal/qrcode"
 	"afterzin/api/internal/repository"
@@ -160,14 +160,14 @@ func (h *Handler) CreateRecipient(w http.ResponseWriter, r *http.Request) {
 		AccountType:            req.AccountType,
 	})
 	if err != nil {
-		log.Printf("pagarme: create recipient error: %v", err)
+		logger.Errorf("erro ao criar recebedor no Pagar.me: %v", err)
 		respondError(w, http.StatusInternalServerError, "erro ao criar recebedor: "+err.Error())
 		return
 	}
 
 	// Persist recipient ID
 	if err := repository.SetProducerPagarmeRecipientID(h.db, prodID, result.RecipientID); err != nil {
-		log.Printf("pagarme: save recipient id error: %v", err)
+		logger.Errorf("erro ao salvar recipient id: %v", err)
 		respondError(w, http.StatusInternalServerError, "erro ao salvar recebedor")
 		return
 	}
@@ -175,7 +175,7 @@ func (h *Handler) CreateRecipient(w http.ResponseWriter, r *http.Request) {
 	// Mark onboarding as complete
 	repository.SetProducerOnboardingComplete(h.db, prodID, true)
 
-	log.Printf("pagarme: recipient created for producer %s (recipient: %s)", prodID, result.RecipientID)
+	logger.Infof("recebedor criado para produtor %s (recipient: %s)", prodID, result.RecipientID)
 
 	respondJSON(w, http.StatusOK, map[string]interface{}{
 		"recipientId": result.RecipientID,
@@ -219,7 +219,7 @@ func (h *Handler) GetRecipientStatus(w http.ResponseWriter, r *http.Request) {
 	// Check live status from Pagar.me
 	recipientData, err := h.client.GetRecipient(recipientID)
 	if err != nil {
-		log.Printf("pagarme: get recipient status error: %v", err)
+		logger.Errorf("erro ao obter status do recebedor no Pagar.me: %v", err)
 		// Return cached local status
 		onboardingComplete, _ := repository.GetProducerOnboardingComplete(h.db, prodID)
 		respondJSON(w, http.StatusOK, map[string]interface{}{
@@ -399,7 +399,7 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Log estruturado antes de enviar ao Pagar.me
-	log.Printf("[CreatePayment] Enviando ao Pagar.me: orderID=%s, total=%d centavos, items=%d, tickets=%d, method=%s, hasPhone=%v",
+	logger.Debugf("enviando pedido ao Pagar.me: orderID=%s total=%d centavos items=%d ingressos=%d metodo=%s temTelefone=%v",
 		req.OrderID, totalCentavos, len(orderItems), totalTickets, AllowedPaymentMethod, customerPhone != nil)
 
 	// Create Pagar.me order with PIX + split
@@ -416,7 +416,7 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		Items:               orderItems,
 	})
 	if err != nil {
-		log.Printf("pagarme: create pix order error: %v", err)
+		logger.Errorf("erro ao criar pedido PIX no Pagar.me: %v", err)
 		respondError(w, http.StatusInternalServerError, "erro ao criar pagamento PIX: "+err.Error())
 		return
 	}
@@ -425,7 +425,7 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 	repository.SetOrderPagarmeOrderID(h.db, req.OrderID, pixResult.PagarmeOrderID)
 	repository.SetOrderPagarmeChargeID(h.db, req.OrderID, pixResult.PagarmeChargeID)
 
-	log.Printf("pagarme: PIX order created for order %s (pagarme_order: %s, charge: %s, amount: %d, fee: %d×%d)",
+	logger.Infof("pedido PIX criado: pedido=%s pagarme_order=%s charge=%s valor=%d centavos taxa=%d×%d",
 		req.OrderID, pixResult.PagarmeOrderID, pixResult.PagarmeChargeID,
 		totalCentavos, h.client.ApplicationFee, totalTickets)
 
@@ -507,65 +507,59 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[WEBHOOK] Recebendo webhook Pagar.me")
+	logger.Infof("recebendo webhook do Pagar.me")
 	body, err := io.ReadAll(io.LimitReader(r.Body, 65536))
 	if err != nil {
-		log.Printf("[WEBHOOK] Erro ao ler corpo: %v", err)
+		logger.Errorf("erro ao ler corpo do webhook: %v", err)
 		respondError(w, http.StatusBadRequest, "erro ao ler corpo")
 		return
 	}
-
-	log.Printf("[WEBHOOK] Corpo recebido: %s", string(body))
-
 	// NOTE: signature verification intentionally disabled.
 	// Always parse the incoming payload and proceed without checking
-	// the `x-hub-signature` header. This makes webhook processing
-	// tolerant to providers that don't send a signature or when
-	// headers are stripped by proxies. Use with caution in production.
+	// the `x-hub-signature` header. Use with caution in production.
 	var event *WebhookEvent
 	var evt WebhookEvent
 	if err := json.Unmarshal(body, &evt); err != nil {
-		log.Printf("[WEBHOOK] Erro ao parsear payload: %v", err)
+		logger.Errorf("erro ao parsear payload do webhook: %v", err)
 		respondError(w, http.StatusBadRequest, "corpo inválido")
 		return
 	}
 	event = &evt
-	log.Printf("[WEBHOOK] Verificação de assinatura desabilitada — evento recebido: id=%s type=%s", event.ID, event.Type)
+	logger.Infof("verificação de assinatura desabilitada — evento recebido: id=%s tipo=%s", event.ID, event.Type)
 
 	// Idempotency check - prevent processing same event twice
 	if repository.PagarmeWebhookEventExists(h.db, event.ID) {
-		log.Printf("[WEBHOOK] Evento %s já recebido, ignorando.", event.ID)
+		logger.Warnf("evento %s já recebido — ignorando", event.ID)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
 	// Log the event immediately (prevents duplicate processing if request retries)
 	if err := repository.InsertPagarmeWebhookEvent(h.db, event.ID, event.Type); err != nil {
-		log.Printf("[WEBHOOK] Erro ao inserir evento no banco: %v", err)
+		logger.Errorf("erro ao inserir evento do webhook no banco: %v", err)
 		respondError(w, http.StatusInternalServerError, "erro ao processar webhook")
 		return
 	}
-
-	log.Printf("[WEBHOOK] Evento registrado no banco: id=%s type=%s", event.ID, event.Type)
+	logger.Infof("evento registrado no banco: id=%s tipo=%s", event.ID, event.Type)
 
 	// Route by event type
 	switch event.Type {
 	case "order.paid":
-		log.Printf("[WEBHOOK] Processando evento order.paid")
+		logger.Infof("processando evento order.paid")
 		h.handleOrderPaid(event)
 	case "charge.paid":
-		log.Printf("[WEBHOOK] Processando evento charge.paid")
+		logger.Infof("processando evento charge.paid")
 		h.handleChargePaid(event)
 	default:
-		log.Printf("[WEBHOOK] Tipo de evento não tratado: %s", event.Type)
+		logger.Warnf("tipo de evento não tratado: %s", event.Type)
 	}
 
 	// Mark as processed with timestamp
 	if err := repository.MarkPagarmeWebhookEventProcessedAt(h.db, event.ID); err != nil {
-		log.Printf("[WEBHOOK] Erro ao marcar evento como processado: %v", err)
+		logger.Errorf("erro ao marcar evento do webhook como processado: %v", err)
 	}
 
-	log.Printf("[WEBHOOK] Processamento finalizado para evento: %s", event.ID)
+	logger.Infof("processamento finalizado para evento: %s", event.ID)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -577,7 +571,7 @@ func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleOrderPaid(event *WebhookEvent) {
 	data := event.Data
 	if data == nil {
-		log.Printf("[ERROR] pagarme: order.paid - no data")
+		logger.Errorf("pagarme: order.paid - sem dados no evento")
 		return
 	}
 
@@ -586,17 +580,17 @@ func (h *Handler) handleOrderPaid(event *WebhookEvent) {
 	pagarmeOrderID, _ := data["id"].(string)
 
 	if orderID == "" {
-		log.Printf("[ERROR] pagarme: order.paid but no order code in data (pagarme_order: %s)", pagarmeOrderID)
+		logger.Errorf("pagarme: order.paid sem código de pedido no evento (pagarme_order: %s)", pagarmeOrderID)
 		return
 	}
 
 	// Additional idempotency check: prevent processing if another event (charge.paid) already processed this order
 	if repository.PagarmeWebhookProcessedForOrder(h.db, orderID, "order.paid") {
-		log.Printf("[SKIP] pagarme: order %s already processed by order.paid event", orderID)
+		logger.Warnf("pedido %s já processado por order.paid — pulando", orderID)
 		return
 	}
 	if repository.PagarmeWebhookProcessedForOrder(h.db, orderID, "charge.paid") {
-		log.Printf("[SKIP] pagarme: order %s already processed by charge.paid event", orderID)
+		logger.Warnf("pedido %s já processado por charge.paid — pulando", orderID)
 		return
 	}
 
@@ -617,7 +611,7 @@ func (h *Handler) handleOrderPaid(event *WebhookEvent) {
 func (h *Handler) handleChargePaid(event *WebhookEvent) {
 	data := event.Data
 	if data == nil {
-		log.Printf("[ERROR] pagarme: charge.paid - no data")
+		logger.Errorf("pagarme: charge.paid - sem dados no evento")
 		return
 	}
 
@@ -626,7 +620,7 @@ func (h *Handler) handleChargePaid(event *WebhookEvent) {
 	// Try to get order info from the charge
 	orderData, ok := data["order"].(map[string]interface{})
 	if !ok {
-		log.Printf("[ERROR] pagarme: charge.paid but no order in charge data (charge: %s)", chargeID)
+		logger.Errorf("pagarme: charge.paid sem order no charge (charge: %s)", chargeID)
 		return
 	}
 
@@ -634,17 +628,17 @@ func (h *Handler) handleChargePaid(event *WebhookEvent) {
 	pagarmeOrderID, _ := orderData["id"].(string)
 
 	if orderID == "" {
-		log.Printf("[ERROR] pagarme: charge.paid but no order code (charge: %s)", chargeID)
+		logger.Errorf("pagarme: charge.paid sem código de pedido (charge: %s)", chargeID)
 		return
 	}
 
 	// Additional idempotency check: prevent processing if order.paid already processed this order
 	if repository.PagarmeWebhookProcessedForOrder(h.db, orderID, "order.paid") {
-		log.Printf("[SKIP] pagarme: order %s already processed by order.paid event", orderID)
+		logger.Warnf("pedido %s já processado por order.paid — pulando", orderID)
 		return
 	}
 	if repository.PagarmeWebhookProcessedForOrder(h.db, orderID, "charge.paid") {
-		log.Printf("[SKIP] pagarme: order %s already processed by charge.paid event", orderID)
+		logger.Warnf("pedido %s já processado por charge.paid — pulando", orderID)
 		return
 	}
 
@@ -656,12 +650,12 @@ func (h *Handler) handleChargePaid(event *WebhookEvent) {
 // Validates payment amount to prevent fraud.
 // Creates audit trail of status changes.
 func (h *Handler) processOrderPayment(orderID, pagarmeOrderID, chargeID string) {
-	log.Printf("[WEBHOOK_PROCESSING] order_id=%s pagarme_order=%s charge=%s", orderID, pagarmeOrderID, chargeID)
+	logger.Infof("processando pagamento do pedido: pedido=%s pagarme_order=%s charge=%s", orderID, pagarmeOrderID, chargeID)
 
 	// Begin atomic transaction
 	tx, err := h.db.Begin()
 	if err != nil {
-		log.Printf("[ERROR] pagarme: begin transaction error for order %s: %v", orderID, err)
+		logger.Errorf("erro ao iniciar transação para pedido %s: %v", orderID, err)
 		return
 	}
 	defer tx.Rollback() // Auto-rollback if not committed
@@ -669,26 +663,26 @@ func (h *Handler) processOrderPayment(orderID, pagarmeOrderID, chargeID string) 
 	// 1. Atomically claim the order (optimistic lock to prevent race conditions)
 	claimed, err := repository.ClaimOrderProcessingTx(tx, orderID)
 	if err != nil {
-		log.Printf("[ERROR] pagarme: claim order %s error: %v", orderID, err)
+		logger.Errorf("erro ao reivindicar pedido %s: %v", orderID, err)
 		return
 	}
 	if !claimed {
 		// Another webhook is already processing this order
-		log.Printf("[SKIP] pagarme: order %s already claimed by another webhook", orderID)
+		logger.Warnf("pedido %s já reivindicado por outro webhook — pulando", orderID)
 		return
 	}
-	log.Printf("[ORDER_CLAIMED] order_id=%s status=PROCESSING", orderID)
+	logger.Infof("pedido reivindicado: %s status=PROCESSING", orderID)
 
 	// 2. Save Pagar.me IDs within transaction
 	if pagarmeOrderID != "" {
 		if err := repository.SetOrderPagarmeOrderIDTx(tx, orderID, pagarmeOrderID); err != nil {
-			log.Printf("[ERROR] pagarme: set pagarme order id error: %v", err)
+			logger.Errorf("erro ao salvar pagarme_order_id no pedido %s: %v", orderID, err)
 			return
 		}
 	}
 	if chargeID != "" {
 		if err := repository.SetOrderPagarmeChargeIDTx(tx, orderID, chargeID); err != nil {
-			log.Printf("[ERROR] pagarme: set pagarme charge id error: %v", err)
+			logger.Errorf("erro ao salvar pagarme_charge_id no pedido %s: %v", orderID, err)
 			return
 		}
 	}
@@ -696,7 +690,7 @@ func (h *Handler) processOrderPayment(orderID, pagarmeOrderID, chargeID string) 
 	// 3. Get order details
 	orderUserID, orderStatus, orderTotal, err := repository.OrderByIDTx(tx, orderID)
 	if err != nil || orderUserID == "" {
-		log.Printf("[ERROR] pagarme: order %s not found in transaction", orderID)
+		logger.Errorf("pedido %s não encontrado na transação: %v", orderID, err)
 		return
 	}
 
@@ -704,7 +698,7 @@ func (h *Handler) processOrderPayment(orderID, pagarmeOrderID, chargeID string) 
 	if pagarmeOrderID != "" {
 		paidAmount, err := h.client.GetOrderPaidAmount(pagarmeOrderID)
 		if err != nil {
-			log.Printf("[ERROR] pagarme: get paid amount for order %s error: %v", orderID, err)
+			logger.Errorf("erro ao obter valor pago no Pagar.me para pedido %s: %v", orderID, err)
 			// Record failed validation
 			repository.RecordOrderStatusChangeWithError(tx, orderID, orderStatus, "FRAUD_ALERT", "payment_validation_failed", err.Error())
 			return
@@ -712,19 +706,19 @@ func (h *Handler) processOrderPayment(orderID, pagarmeOrderID, chargeID string) 
 
 		expectedAmount := int64(orderTotal * 100) // Convert to centavos
 		if paidAmount != expectedAmount {
-			log.Printf("[FRAUD_ALERT] order %s: expected %d centavos, paid %d centavos", orderID, expectedAmount, paidAmount)
+			logger.Warnf("alerta de fraude no pedido %s: esperado %d centavos, pago %d centavos", orderID, expectedAmount, paidAmount)
 			// Record fraud attempt
 			repository.RecordOrderStatusChange(tx, orderID, orderStatus, "FRAUD_ALERT", "amount_mismatch", "", pagarmeOrderID, chargeID)
 			tx.Commit() // Commit the fraud record
 			return
 		}
-		log.Printf("[PAYMENT_VALIDATED] order_id=%s amount=%d centavos", orderID, paidAmount)
+		logger.Infof("pagamento validado: pedido=%s valor=%d centavos", orderID, paidAmount)
 	}
 
 	// 5. Get order items within transaction
 	items, err := repository.OrderItemsByOrderIDTx(tx, orderID)
 	if err != nil {
-		log.Printf("[ERROR] pagarme: get order items for %s error: %v", orderID, err)
+		logger.Errorf("erro ao obter itens do pedido %s: %v", orderID, err)
 		return
 	}
 
@@ -733,19 +727,19 @@ func (h *Handler) processOrderPayment(orderID, pagarmeOrderID, chargeID string) 
 	for _, item := range items {
 		evDate, err := repository.EventDateByIDTx(tx, item.EventDateID)
 		if err != nil || evDate == nil {
-			log.Printf("[ERROR] pagarme: event date %s not found", item.EventDateID)
+			logger.Errorf("data do evento não encontrada: %s", item.EventDateID)
 			return
 		}
 
 		ev, err := repository.EventByIDTx(tx, evDate.EventID)
 		if err != nil || ev == nil {
-			log.Printf("[ERROR] pagarme: event %s not found", evDate.EventID)
+			logger.Errorf("evento não encontrado: %s", evDate.EventID)
 			return
 		}
 
 		tt, err := repository.TicketTypeByIDTx(tx, item.TicketTypeID)
 		if err != nil || tt == nil {
-			log.Printf("[ERROR] pagarme: ticket type %s not found", item.TicketTypeID)
+			logger.Errorf("tipo de ingresso não encontrado: %s", item.TicketTypeID)
 			return
 		}
 
@@ -763,51 +757,51 @@ func (h *Handler) processOrderPayment(orderID, pagarmeOrderID, chargeID string) 
 				ev.ID, item.EventDateID, item.TicketTypeID,
 			)
 			if err != nil {
-				log.Printf("[ERROR] pagarme: create ticket error: %v", err)
+				logger.Errorf("erro ao criar ingresso: %v", err)
 				return // ROLLBACK entire transaction
 			}
 			ticketsCreated++
 
 			// Increment sold count
 			if err := repository.IncrementTicketTypeSoldTx(tx, item.TicketTypeID, 1); err != nil {
-				log.Printf("[ERROR] pagarme: increment sold error: %v", err)
+				logger.Errorf("erro ao incrementar vendidos: %v", err)
 				return
 			}
 
 			// Decrement available quantity (with validation)
 			lotID, err := repository.LotIDByTicketTypeIDTx(tx, item.TicketTypeID)
 			if err != nil {
-				log.Printf("[ERROR] pagarme: get lot id error: %v", err)
+				logger.Errorf("erro ao obter lote: %v", err)
 				return
 			}
 
 			if err := repository.DecrementLotAvailableTx(tx, lotID, 1); err != nil {
-				log.Printf("[ERROR] pagarme: decrement lot available error (overselling prevented): %v", err)
+				logger.Errorf("erro ao decrementar disponível no lote (evitando oversell): %v", err)
 				return
 			}
 		}
 	}
 
-	log.Printf("[TICKETS_CREATED] order_id=%s count=%d", orderID, ticketsCreated)
+	logger.Infof("ingressos criados: pedido=%s quantidade=%d", orderID, ticketsCreated)
 
 	// 7. Confirm the order (PROCESSING → PAID)
 	if err := repository.ConfirmOrderTx(tx, orderID); err != nil {
-		log.Printf("[ERROR] pagarme: confirm order %s error: %v", orderID, err)
+		logger.Errorf("erro ao confirmar pedido %s: %v", orderID, err)
 		return
 	}
 
 	// 8. Record status change for audit trail
 	if err := repository.RecordOrderStatusChange(tx, orderID, "PROCESSING", "PAID", "webhook_payment_confirmed", "", pagarmeOrderID, chargeID); err != nil {
-		log.Printf("[WARNING] pagarme: record status change error (non-fatal): %v", err)
+		logger.Warnf("erro ao registrar alteração de status (não-fatal): %v", err)
 		// Continue - this is just for audit
 	}
 
 	// 9. COMMIT transaction (all-or-nothing)
 	if err := tx.Commit(); err != nil {
-		log.Printf("[ERROR] pagarme: commit transaction error for order %s: %v", orderID, err)
+		logger.Errorf("erro ao commitar transação do pedido %s: %v", orderID, err)
 		return
 	}
 
-	log.Printf("[ORDER_CONFIRMED] order_id=%s status=PAID tickets=%d pagarme_order=%s charge=%s",
+	logger.Infof("pedido confirmado: pedido=%s status=PAID ingressos=%d pagarme_order=%s charge=%s",
 		orderID, ticketsCreated, pagarmeOrderID, chargeID)
 }

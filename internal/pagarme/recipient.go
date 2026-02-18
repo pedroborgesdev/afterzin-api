@@ -2,7 +2,6 @@ package pagarme
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 )
 
@@ -54,7 +53,7 @@ type RecipientResult struct {
 // The default bank account is used for automatic transfers.
 
 func (c *Client) CreateRecipient(params CreateRecipientParams) (*RecipientResult, error) {
-	log.Printf("pagarme: recipient payload: %+v", params)
+	// Não logamos o payload completo por segurança
 	holderType := "individual"
 	if params.Type == "company" {
 		holderType = "company"
